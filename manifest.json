@@ -1,0 +1,13 @@
+{
+  "name": "Praktikums-Stundenzettel",
+  "short_name": "Stunden",
+  "lang": "de",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f6f8",
+  "theme_color": "#0a84ff",
+  "icons": [
+    { "src": "icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}

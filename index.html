@@ -1,0 +1,728 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Stunden">
+<meta name="theme-color" content="#f6f6f8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="icon.png">
+<title>Stundenzettel</title>
+<style>
+  :root {
+    --bg: #f6f6f8;
+    --card: #ffffff;
+    --text: #1c1c1e;
+    --muted: #6e6e73;
+    --line: #e3e3e8;
+    --accent: #0a84ff;
+    --accent-text: #ffffff;
+    --danger: #ff3b30;
+    --warn-bg: #fff4d6;
+    --warn-text: #6b4e00;
+    --radius: 14px;
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #000000;
+      --card: #1c1c1e;
+      --text: #f2f2f7;
+      --muted: #98989f;
+      --line: #2c2c2e;
+      --accent: #0a84ff;
+      --danger: #ff453a;
+      --warn-bg: #3a2f10;
+      --warn-text: #ffd66b;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    font: 17px/1.4 -apple-system, BlinkMacSystemFont, "Helvetica Neue", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    min-height: 100vh;
+  }
+  main { max-width: 560px; margin: 0 auto; padding: 0 16px 120px; }
+  [hidden] { display: none !important; }
+
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    min-height: 56px; padding-top: 8px;
+  }
+  h1 { font-size: 28px; font-weight: 700; margin: 0; letter-spacing: -0.02em; }
+  h2 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin: 28px 4px 8px; }
+
+  button, .btn {
+    font: inherit; border: 0; cursor: pointer;
+    min-height: 44px; min-width: 44px; border-radius: 12px;
+    padding: 0 18px; background: var(--card); color: var(--accent);
+    font-weight: 600;
+  }
+  button:active { opacity: 0.6; }
+  .btn-primary { background: var(--accent); color: var(--accent-text); }
+  .btn-danger { color: var(--danger); }
+  .btn-plain { background: transparent; padding: 0 8px; }
+  .btn-block { display: block; width: 100%; }
+
+  .card { background: var(--card); border-radius: var(--radius); padding: 16px; }
+
+  /* Übersicht */
+  .summary .big { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .summary .big small { font-size: 20px; color: var(--muted); font-weight: 500; }
+  .bar { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; margin: 12px 0; }
+  .bar > div { height: 100%; width: 0; background: var(--accent); border-radius: 4px; transition: width .3s; }
+  .stats { display: flex; gap: 16px; color: var(--muted); font-size: 15px; }
+  .stats b { color: var(--text); font-variant-numeric: tabular-nums; }
+
+  .banner {
+    display: block; width: 100%; text-align: left; margin-top: 12px;
+    background: var(--warn-bg); color: var(--warn-text); font-weight: 500;
+    padding: 12px 16px; border-radius: var(--radius); min-height: 44px;
+  }
+
+  .list { display: flex; flex-direction: column; gap: 10px; }
+  .entry { display: block; width: 100%; text-align: left; color: var(--text); font-weight: 400; padding: 14px 16px; }
+  .entry .row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .entry .date { font-weight: 600; }
+  .entry .hours { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .entry .span { color: var(--muted); font-size: 15px; font-variant-numeric: tabular-nums; }
+  .entry .tasks {
+    color: var(--muted); font-size: 15px; margin-top: 4px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .empty { text-align: center; color: var(--muted); padding: 40px 16px; }
+
+  .fab {
+    position: fixed; right: max(20px, env(safe-area-inset-right)); bottom: calc(20px + env(safe-area-inset-bottom));
+    width: 60px; height: 60px; border-radius: 50%; padding: 0;
+    background: var(--accent); color: var(--accent-text);
+    font-size: 34px; font-weight: 400; line-height: 1;
+    box-shadow: 0 4px 16px rgba(0,0,0,.25);
+  }
+
+  /* Formular */
+  .field { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 4px 0; }
+  .field + .field { border-top: 1px solid var(--line); }
+  .field label { flex: 0 0 auto; }
+  .weekday { display: block; color: var(--muted); font-size: 15px; }
+  /* Datum, Zeit und Auswahl bleiben im nativen iOS-Stil (graue Kapsel, Auswahlrad beim Antippen) */
+  .field input, .field select { font: inherit; font-size: 17px; min-height: 36px; margin-left: auto; }
+  .field select { text-align: right; text-align-last: right; }
+  .field input[type="number"] {
+    color: var(--text); background: transparent; border: 0; text-align: right;
+    min-height: 44px; min-width: 0; flex: 1 1 auto;
+    -webkit-appearance: none; appearance: none;
+  }
+  .field input[type="number"]:focus { outline: none; color: var(--accent); }
+  .stack label { display: block; margin-bottom: 8px; }
+  textarea {
+    font: inherit; font-size: 17px; color: var(--text); background: transparent;
+    border: 0; width: 100%; min-height: 110px; resize: vertical; padding: 0;
+  }
+  textarea:focus { outline: none; }
+  .live { text-align: center; margin: 20px 0 4px; }
+  .live .big { font-size: 40px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .live .hint { color: var(--muted); font-size: 15px; }
+  .error { color: var(--danger); text-align: center; min-height: 22px; font-size: 15px; margin: 4px 0 12px; }
+  .actions { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+  .muted { color: var(--muted); font-size: 15px; }
+
+  dialog {
+    border: 0; border-radius: var(--radius); padding: 20px; width: min(92vw, 380px);
+    background: var(--card); color: var(--text);
+  }
+  dialog::backdrop { background: rgba(0,0,0,.4); }
+  dialog p { margin: 0 0 16px; }
+  dialog .actions { margin: 0; }
+</style>
+</head>
+<body>
+<main>
+
+  <!-- Übersicht -->
+  <section id="view-list">
+    <header>
+      <h1>Stundenzettel</h1>
+      <button class="btn-plain" id="btn-settings" aria-label="Einstellungen">Einstellungen</button>
+    </header>
+
+    <div class="card summary">
+      <div class="big" id="sum-total">0:00 h <small>/ 0 h</small></div>
+      <div class="bar"><div id="sum-bar"></div></div>
+      <div class="stats">
+        <span>Noch <b id="sum-left">0:00 h</b></span>
+        <span><b id="sum-days">0</b> Arbeitstage</span>
+      </div>
+    </div>
+
+    <button class="banner" id="backup-banner" hidden>Letztes Backup ist über 7 Tage alt. Jetzt exportieren →</button>
+
+    <h2>Einträge</h2>
+    <div class="list" id="entry-list"></div>
+
+    <button class="fab" id="btn-new" aria-label="Neuer Eintrag">+</button>
+  </section>
+
+  <!-- Eintrag -->
+  <section id="view-form" hidden>
+    <header>
+      <button class="btn-plain" id="btn-cancel">Abbrechen</button>
+      <h1 id="form-title" style="font-size:17px">Neuer Eintrag</h1>
+      <span style="width:88px"></span>
+    </header>
+
+    <form id="entry-form" novalidate>
+      <div class="card">
+        <div class="field"><label for="f-datum">Datum<span class="weekday" id="f-weekday"></span></label><input type="date" id="f-datum" required></div>
+        <div class="field"><label for="f-start">Start</label><input type="time" id="f-start" required></div>
+        <div class="field"><label for="f-ende">Ende</label><input type="time" id="f-ende" required></div>
+        <div class="field"><label for="f-pause">Pause (Min.)</label><select id="f-pause"></select></div>
+      </div>
+
+      <h2>Tätigkeiten</h2>
+      <div class="card"><textarea id="f-taetigkeiten" placeholder="Optional"></textarea></div>
+
+      <div class="live">
+        <div class="big" id="f-live">–</div>
+        <div class="hint">Arbeitszeit</div>
+      </div>
+      <div class="error" id="f-error"></div>
+
+      <div class="actions">
+        <button type="submit" class="btn-primary btn-block">Speichern</button>
+        <button type="button" class="btn-danger btn-block" id="btn-delete" hidden>Eintrag löschen</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- Einstellungen -->
+  <section id="view-settings" hidden>
+    <header>
+      <button class="btn-plain" id="btn-settings-back">‹ Zurück</button>
+      <h1 style="font-size:17px">Einstellungen</h1>
+      <span style="width:88px"></span>
+    </header>
+
+    <h2>Ziel</h2>
+    <div class="card">
+      <div class="field"><label for="s-ziel">Zielstunden</label><input type="number" id="s-ziel" inputmode="decimal" min="0" step="0.5"></div>
+    </div>
+
+    <h2>Backup</h2>
+    <div class="actions">
+      <button class="btn-block" id="btn-export">Backup exportieren (CSV)</button>
+      <button class="btn-block" id="btn-import">Backup importieren</button>
+      <input type="file" id="import-file" accept=".csv,text/csv,text/plain" hidden>
+    </div>
+    <p class="muted" style="margin:12px 4px" id="s-last-backup">Noch kein Backup.</p>
+
+    <h2>Daten</h2>
+    <div class="actions">
+      <button class="btn-danger btn-block" id="btn-wipe">Alle Einträge löschen</button>
+    </div>
+  </section>
+
+</main>
+
+<dialog id="import-dialog">
+  <p id="import-text"></p>
+  <div class="actions">
+    <button class="btn-primary btn-block" value="ergaenzen" data-choice>Ergänzen</button>
+    <button class="btn-danger btn-block" value="ersetzen" data-choice>Alle ersetzen</button>
+    <button class="btn-block" value="" data-choice>Abbrechen</button>
+  </div>
+</dialog>
+
+<script>
+'use strict';
+
+/* ---------- 1. Datenmodell, Speichern, Laden, Berechnung ---------- */
+
+const STORAGE_KEY = 'stundenzettel_v1';
+const BACKUP_INTERVAL_DAYS = 7;
+const DEFAULT_PAUSE = 30;
+
+function emptyState() {
+  return {
+    eintraege: [],
+    einstellungen: { zielStunden: 0, letztesBackup: null, letzteAenderung: null },
+  };
+}
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return emptyState();
+    const data = JSON.parse(raw);
+    const state = emptyState();
+    state.eintraege = Array.isArray(data.eintraege) ? data.eintraege : [];
+    Object.assign(state.einstellungen, data.einstellungen || {});
+    return state;
+  } catch (e) {
+    console.error('Laden fehlgeschlagen', e);
+    return emptyState();
+  }
+}
+
+let state = load();
+
+function save({ changed = true } = {}) {
+  if (changed) state.einstellungen.letzteAenderung = new Date().toISOString();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function newId() {
+  return (crypto.randomUUID && crypto.randomUUID()) || Date.now().toString(36) + Math.random().toString(36).slice(2);
+}
+
+function toMin(hhmm) {
+  if (!/^\d{1,2}:\d{2}$/.test(hhmm || '')) return NaN;
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + m;
+}
+
+/** Arbeitszeit in Minuten: Ende − Start − Pause */
+function workMinutes(e) {
+  return toMin(e.ende) - toMin(e.start) - (Number(e.pauseMin) || 0);
+}
+
+/** Gibt eine Fehlermeldung zurück oder null, wenn der Eintrag gültig ist. */
+function validate(e) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(e.datum || '')) return 'Bitte ein Datum wählen.';
+  const s = toMin(e.start), en = toMin(e.ende);
+  if (isNaN(s) || isNaN(en)) return 'Bitte Start- und Endzeit eingeben.';
+  if (en <= s) return 'Ende muss nach Start liegen.';
+  const p = Number(e.pauseMin);
+  if (!Number.isInteger(p) || p < 0) return 'Pause muss eine ganze Zahl ≥ 0 sein.';
+  if (p >= en - s) return 'Pause muss kürzer als die Zeitspanne sein.';
+  return null;
+}
+
+function fmtHours(min) {
+  const sign = min < 0 ? '−' : '';
+  min = Math.abs(Math.round(min));
+  return `${sign}${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0')} h`;
+}
+
+function todayISO() {
+  return isoOf(new Date());
+}
+
+function fmtDate(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function findByDate(datum) {
+  return state.eintraege.find(e => e.datum === datum);
+}
+
+function upsert(entry) {
+  const i = state.eintraege.findIndex(e => e.id === entry.id);
+  if (i >= 0) state.eintraege[i] = entry; else state.eintraege.push(entry);
+  save();
+}
+
+function remove(id) {
+  state.eintraege = state.eintraege.filter(e => e.id !== id);
+  save();
+}
+
+/* ---------- Ansichten umschalten ---------- */
+
+const $ = id => document.getElementById(id);
+const views = { list: $('view-list'), form: $('view-form'), settings: $('view-settings') };
+
+function show(name) {
+  for (const [k, el] of Object.entries(views)) el.hidden = k !== name;
+  window.scrollTo(0, 0);
+  if (name === 'list') renderList();
+  if (name === 'settings') renderSettings();
+}
+
+/* ---------- 3. Übersicht ---------- */
+
+function renderList() {
+  const entries = [...state.eintraege].sort((a, b) => b.datum.localeCompare(a.datum));
+  const total = entries.reduce((sum, e) => sum + workMinutes(e), 0);
+  const zielMin = (Number(state.einstellungen.zielStunden) || 0) * 60;
+
+  $('sum-total').innerHTML = `${fmtHours(total)} <small>/ ${fmtZiel()} h</small>`;
+  $('sum-bar').style.width = zielMin > 0 ? Math.min(100, total / zielMin * 100) + '%' : '0%';
+  $('sum-left').textContent = fmtHours(Math.max(0, zielMin - total));
+  $('sum-days').textContent = entries.length;
+  $('backup-banner').hidden = !backupDue();
+
+  const list = $('entry-list');
+  list.replaceChildren();
+  if (!entries.length) {
+    list.innerHTML = '<div class="empty">Noch keine Einträge.<br>Tippe auf + für deinen ersten Arbeitstag.</div>';
+    return;
+  }
+  for (const e of entries) {
+    const btn = document.createElement('button');
+    btn.className = 'card entry';
+    btn.innerHTML = `
+      <div class="row"><span class="date"></span><span class="hours"></span></div>
+      <div class="span"></div>
+      <div class="tasks"></div>`;
+    btn.querySelector('.date').textContent = fmtDate(e.datum);
+    btn.querySelector('.hours').textContent = fmtHours(workMinutes(e));
+    btn.querySelector('.span').textContent = `${e.start}–${e.ende} · ${e.pauseMin} min Pause`;
+    const tasks = btn.querySelector('.tasks');
+    if (e.taetigkeiten) tasks.textContent = e.taetigkeiten.replace(/\s+/g, ' '); else tasks.remove();
+    btn.addEventListener('click', () => openForm(e));
+    list.appendChild(btn);
+  }
+}
+
+function fmtZiel() {
+  return String(Number(state.einstellungen.zielStunden) || 0).replace('.', ',');
+}
+
+/* ---------- 2. Formular ---------- */
+
+let editingId = null;
+const form = $('entry-form');
+const f = {
+  datum: $('f-datum'), start: $('f-start'), ende: $('f-ende'),
+  pause: $('f-pause'), taetigkeiten: $('f-taetigkeiten'),
+};
+
+// Pause als natives iOS-Auswahlrad: 0–120 Minuten in 5er-Schritten
+function setPauseOptions(selected) {
+  const values = new Set();
+  for (let m = 0; m <= 120; m += 5) values.add(m);
+  values.add(Number(selected) || 0); // z. B. 37 min aus einem Import
+  f.pause.replaceChildren(...[...values].sort((a, b) => a - b).map(m => new Option(`${m} min`, m)));
+  f.pause.value = Number(selected) || 0;
+}
+
+// Vorschlag für neue Einträge: Zeiten des letzten Eintrags, sonst 08:00–16:30
+function suggestedTimes() {
+  const last = [...state.eintraege].sort((a, b) => b.datum.localeCompare(a.datum))[0];
+  return last ? { start: last.start, ende: last.ende, pauseMin: last.pauseMin } : { start: '08:00', ende: '16:30', pauseMin: DEFAULT_PAUSE };
+}
+
+function readForm() {
+  return {
+    id: editingId || newId(),
+    datum: f.datum.value,
+    start: f.start.value,
+    ende: f.ende.value,
+    pauseMin: f.pause.value === '' ? 0 : Number(f.pause.value),
+    taetigkeiten: f.taetigkeiten.value.trim(),
+  };
+}
+
+function fillForm(e) {
+  editingId = e ? e.id : null;
+  f.datum.value = e ? e.datum : (f.datum.value || todayISO());
+  const vals = e || suggestedTimes();
+  f.start.value = vals.start;
+  f.ende.value = vals.ende;
+  setPauseOptions(vals.pauseMin);
+  f.taetigkeiten.value = e ? e.taetigkeiten : '';
+  $('form-title').textContent = e ? 'Eintrag bearbeiten' : 'Neuer Eintrag';
+  $('btn-delete').hidden = !e;
+  $('f-error').textContent = '';
+  updateLive();
+}
+
+// true, wenn der Eintrag nur geöffnet wurde, weil das gewählte Datum schon belegt war
+let switchedByDate = false;
+
+function isoOf(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Datum für einen neuen Eintrag: heute, sonst der letzte freie Werktag davor. */
+function nextFreeDate() {
+  const d = new Date();
+  if (!findByDate(isoOf(d))) return isoOf(d);
+  for (let i = 0; i < 366; i++) {
+    d.setDate(d.getDate() - 1);
+    const weekend = d.getDay() === 0 || d.getDay() === 6;
+    if (!weekend && !findByDate(isoOf(d))) return isoOf(d);
+  }
+  return todayISO();
+}
+
+function openForm(entry) {
+  if (!entry) f.datum.value = nextFreeDate();
+  switchedByDate = false;
+  fillForm(entry || null);
+  show('form');
+}
+
+function updateLive() {
+  const e = readForm();
+  const [y, m, d] = (e.datum || '').split('-').map(Number);
+  $('f-weekday').textContent = y ? new Date(y, m - 1, d).toLocaleDateString('de-DE', { weekday: 'long' }) : '';
+  const err = validate(e);
+  $('f-live').textContent = err ? '–' : fmtHours(workMinutes(e));
+  // Fehler nur anzeigen, sobald beide Zeiten eingegeben sind
+  $('f-error').textContent = (f.start.value && f.ende.value) ? (err || '') : '';
+}
+
+for (const el of Object.values(f)) el.addEventListener('input', updateLive);
+f.pause.addEventListener('change', updateLive);
+
+// Ein Eintrag pro Datum: existiert das gewählte Datum schon, wird dieser Eintrag geöffnet
+f.datum.addEventListener('change', () => {
+  const existing = findByDate(f.datum.value);
+  if (existing && existing.id !== editingId) {
+    fillForm(existing);
+    switchedByDate = true;
+    $('f-error').textContent = 'Für diesen Tag gibt es schon einen Eintrag – du bearbeitest ihn.';
+  } else if (!existing && editingId && switchedByDate) {
+    // Zurück auf einen freien Tag: wieder ein neuer Eintrag, der vorhandene bleibt unverändert
+    fillForm(null);
+    switchedByDate = false;
+  } else {
+    // Über die Liste geöffneter Eintrag wird auf einen freien Tag verschoben – erlaubt
+    updateLive();
+  }
+});
+
+form.addEventListener('submit', ev => {
+  ev.preventDefault();
+  const e = readForm();
+  const err = validate(e);
+  if (err) { $('f-error').textContent = err; return; }
+  const clash = findByDate(e.datum);
+  if (clash && clash.id !== e.id) { $('f-error').textContent = 'Für dieses Datum gibt es schon einen Eintrag.'; return; }
+  upsert(e);
+  show('list');
+});
+
+$('btn-delete').addEventListener('click', () => {
+  if (!editingId) return;
+  const e = state.eintraege.find(x => x.id === editingId);
+  if (e && confirm(`Eintrag vom ${fmtDate(e.datum)} wirklich löschen?`)) {
+    remove(editingId);
+    show('list');
+  }
+});
+
+$('btn-cancel').addEventListener('click', () => show('list'));
+$('btn-new').addEventListener('click', () => openForm(null));
+
+/* ---------- Einstellungen ---------- */
+
+function renderSettings() {
+  $('s-ziel').value = state.einstellungen.zielStunden || '';
+  const lb = state.einstellungen.letztesBackup;
+  $('s-last-backup').textContent = lb
+    ? 'Letztes Backup: ' + new Date(lb).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : 'Noch kein Backup.';
+}
+
+$('s-ziel').addEventListener('change', ev => {
+  const v = Number(String(ev.target.value).replace(',', '.'));
+  state.einstellungen.zielStunden = v > 0 ? v : 0;
+  save({ changed: false });
+});
+
+$('btn-settings').addEventListener('click', () => show('settings'));
+$('btn-settings-back').addEventListener('click', () => show('list'));
+
+$('btn-wipe').addEventListener('click', () => {
+  if (!state.eintraege.length) return;
+  if (confirm(`Alle ${state.eintraege.length} Einträge löschen? Das kann nicht rückgängig gemacht werden.`)) {
+    state.eintraege = [];
+    save();
+    show('list');
+  }
+});
+
+/* ---------- 4. Backup: Export, Import, Erinnerung ---------- */
+
+const CSV_HEADER = ['Datum', 'Start', 'Ende', 'Pause_min', 'Stunden', 'Taetigkeiten'];
+
+function csvField(v) {
+  v = String(v ?? '');
+  return /[";\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+}
+
+function buildCSV() {
+  const rows = [...state.eintraege]
+    .sort((a, b) => a.datum.localeCompare(b.datum))
+    .map(e => [
+      e.datum, e.start, e.ende, e.pauseMin,
+      (workMinutes(e) / 60).toFixed(2).replace('.', ','),
+      e.taetigkeiten,
+    ].map(csvField).join(';'));
+  return '﻿' + [CSV_HEADER.join(';'), ...rows].join('\r\n') + '\r\n';
+}
+
+function parseCSV(text) {
+  text = text.replace(/^﻿/, '');
+  const delim = text.split(/\r?\n/, 1)[0].includes(';') ? ';' : ',';
+  const rows = [];
+  let row = [], field = '', quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
+      if (c === '"' && text[i + 1] === '"') { field += '"'; i++; }
+      else if (c === '"') quoted = false;
+      else field += c;
+    } else if (c === '"') quoted = true;
+    else if (c === delim) { row.push(field); field = ''; }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i + 1] === '\n') i++;
+      row.push(field); rows.push(row); row = []; field = '';
+    } else field += c;
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(x => x.trim() !== ''));
+}
+
+/** Wandelt CSV-Text in Einträge um. Wirft einen Fehler mit verständlicher Meldung. */
+function entriesFromCSV(text) {
+  const rows = parseCSV(text);
+  if (!rows.length) throw new Error('Die Datei ist leer.');
+  const head = rows[0].map(h => h.trim().toLowerCase());
+  const col = name => head.indexOf(name.toLowerCase());
+  const idx = { datum: col('Datum'), start: col('Start'), ende: col('Ende'), pause: col('Pause_min'), t: col('Taetigkeiten') };
+  if (idx.datum < 0 || idx.start < 0 || idx.ende < 0) throw new Error('Unbekanntes Format: Spalten Datum, Start und Ende fehlen.');
+
+  const byDate = new Map();
+  const errors = [];
+  rows.slice(1).forEach((r, n) => {
+    const e = {
+      id: newId(),
+      datum: (r[idx.datum] || '').trim(),
+      start: (r[idx.start] || '').trim().padStart(5, '0'),
+      ende: (r[idx.ende] || '').trim().padStart(5, '0'),
+      pauseMin: idx.pause >= 0 && r[idx.pause].trim() !== '' ? Number(r[idx.pause]) : 0,
+      taetigkeiten: idx.t >= 0 ? (r[idx.t] || '').trim() : '',
+    };
+    const err = validate(e);
+    if (err) errors.push(`Zeile ${n + 2}: ${err}`); else byDate.set(e.datum, e);
+  });
+  return { entries: [...byDate.values()], errors };
+}
+
+function markBackupDone() {
+  state.einstellungen.letztesBackup = new Date().toISOString();
+  save({ changed: false });
+}
+
+function backupDue() {
+  const { letztesBackup, letzteAenderung } = state.einstellungen;
+  if (!state.eintraege.length || !letzteAenderung) return false;
+  if (!letztesBackup) return true;
+  const age = (Date.now() - new Date(letztesBackup)) / 86400000;
+  return age > BACKUP_INTERVAL_DAYS && letzteAenderung > letztesBackup;
+}
+
+async function exportBackup() {
+  if (!state.eintraege.length) { alert('Es gibt noch keine Einträge zum Exportieren.'); return; }
+  const name = `praktikum_${todayISO()}.csv`;
+  const blob = new Blob([buildCSV()], { type: 'text/csv;charset=utf-8' });
+  const file = new File([blob], name, { type: 'text/csv' });
+
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: 'Stundenzettel-Backup' });
+      markBackupDone();
+    } catch (err) {
+      if (err.name !== 'AbortError') { console.warn(err); download(blob, name); markBackupDone(); }
+    }
+  } else {
+    download(blob, name);
+    markBackupDone();
+  }
+  if (!views.list.hidden) renderList(); else renderSettings();
+}
+
+function download(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = Object.assign(document.createElement('a'), { href: url, download: name });
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function askImportMode(text) {
+  const dlg = $('import-dialog');
+  $('import-text').textContent = text;
+  return new Promise(resolve => {
+    const handler = ev => {
+      const btn = ev.target.closest('[data-choice]');
+      if (!btn) return;
+      dlg.removeEventListener('click', handler);
+      dlg.close();
+      resolve(btn.value);
+    };
+    dlg.addEventListener('click', handler);
+    dlg.addEventListener('cancel', () => { dlg.removeEventListener('click', handler); resolve(''); }, { once: true });
+    dlg.showModal();
+  });
+}
+
+$('btn-export').addEventListener('click', exportBackup);
+$('backup-banner').addEventListener('click', exportBackup);
+$('btn-import').addEventListener('click', () => $('import-file').click());
+
+$('import-file').addEventListener('change', async ev => {
+  const file = ev.target.files[0];
+  ev.target.value = '';
+  if (!file) return;
+  let result;
+  try {
+    result = entriesFromCSV(await file.text());
+  } catch (err) {
+    alert('Import fehlgeschlagen: ' + err.message);
+    return;
+  }
+  const { entries, errors } = result;
+  if (!entries.length) { alert('Keine gültigen Einträge gefunden.' + (errors.length ? '\n\n' + errors.slice(0, 5).join('\n') : '')); return; }
+
+  let msg = `${entries.length} Einträge gefunden.`;
+  if (errors.length) msg += ` ${errors.length} Zeilen übersprungen.`;
+  if (state.eintraege.length) {
+    msg += ` Du hast bereits ${state.eintraege.length} Einträge. Ergänzen (gleiches Datum wird überschrieben) oder alle ersetzen?`;
+  }
+  const mode = state.eintraege.length ? await askImportMode(msg) : (confirm(msg + ' Importieren?') ? 'ersetzen' : '');
+  if (!mode) return;
+
+  if (mode === 'ersetzen') {
+    state.eintraege = entries;
+  } else {
+    const imported = new Set(entries.map(e => e.datum));
+    state.eintraege = state.eintraege.filter(e => !imported.has(e.datum)).concat(entries);
+  }
+  save();
+  // Die importierten Daten stammen aus einem Backup – das zählt als gesichert
+  markBackupDone();
+  if (errors.length) alert('Übersprungene Zeilen:\n' + errors.slice(0, 10).join('\n'));
+  show('list');
+});
+
+/* ---------- Start ---------- */
+
+if (navigator.storage && navigator.storage.persist) {
+  navigator.storage.persist().catch(() => {});
+}
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW', err)));
+}
+
+show('list');
+</script>
+</body>
+</html>
