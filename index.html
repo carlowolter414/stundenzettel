@@ -77,11 +77,21 @@
   .card { background: var(--card); border-radius: var(--radius); padding: 16px; }
 
   /* Übersicht */
-  .summary .big { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-  .summary .big small { font-size: 20px; color: var(--muted); font-weight: 500; }
-  .bar { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; margin: 12px 0; }
-  .bar > div { height: 100%; width: 0; background: var(--accent); border-radius: 4px; transition: width .3s; }
-  .stats { display: flex; gap: 16px; color: var(--muted); font-size: 15px; }
+  .summary { padding: 24px 16px 18px; }
+  .ring { position: relative; width: 216px; height: 216px; margin: 0 auto 18px; }
+  .ring svg { display: block; width: 100%; height: 100%; transform: scaleX(-1) rotate(-90deg); } /* Start oben, füllt sich gegen den Uhrzeigersinn */
+  .ring circle { fill: none; stroke-width: 16; }
+  .ring-track { stroke: var(--line); }
+  .ring-value { stroke: var(--accent); stroke-linecap: round; transition: stroke-dasharray .5s ease, stroke-dashoffset .5s ease; }
+  .ring-label {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; font-variant-numeric: tabular-nums;
+  }
+  .ring-pct { font-size: 46px; font-weight: 700; line-height: 1.1; letter-spacing: -0.03em; }
+  .ring-hours { font-size: 15px; font-weight: 600; margin-top: 4px; white-space: nowrap; }
+  .ring-hours small { font-size: inherit; font-weight: 500; color: var(--muted); }
+  @media (prefers-reduced-motion: reduce) { .ring-value { transition: none; } }
+  .stats { display: flex; justify-content: center; gap: 16px; color: var(--muted); font-size: 15px; }
   .stats b { color: var(--text); font-variant-numeric: tabular-nums; }
 
   .banner {
@@ -157,8 +167,16 @@
     </header>
 
     <div class="card summary">
-      <div class="big" id="sum-total">0:00 h <small>/ 0 h</small></div>
-      <div class="bar"><div id="sum-bar"></div></div>
+      <div class="ring">
+        <svg viewBox="0 0 200 200" aria-hidden="true">
+          <circle class="ring-track" cx="100" cy="100" r="88"/>
+          <circle class="ring-value" id="sum-arc" cx="100" cy="100" r="88"/>
+        </svg>
+        <div class="ring-label">
+          <div class="ring-pct" id="sum-pct">–</div>
+          <div class="ring-hours" id="sum-total">0:00 h <small>/ 0 h</small></div>
+        </div>
+      </div>
       <div class="stats">
         <span>Noch <b id="sum-left">0:00 h</b></span>
         <span><b id="sum-days">0</b> Arbeitstage</span>
@@ -250,7 +268,7 @@
 
 const STORAGE_KEY = 'stundenzettel_v1';
 const BACKUP_INTERVAL_DAYS = 7;
-const DEFAULT_PAUSE = 30;
+const DEFAULT_TIMES = { start: '14:00', ende: '21:00', pauseMin: 0 };
 
 function emptyState() {
   return {
@@ -358,7 +376,7 @@ function renderList() {
   const zielMin = (Number(state.einstellungen.zielStunden) || 0) * 60;
 
   $('sum-total').innerHTML = `${fmtHours(total)} <small>/ ${fmtZiel()} h</small>`;
-  $('sum-bar').style.width = zielMin > 0 ? Math.min(100, total / zielMin * 100) + '%' : '0%';
+  renderRing(total, zielMin);
   $('sum-left').textContent = fmtHours(Math.max(0, zielMin - total));
   $('sum-days').textContent = entries.length;
   $('backup-banner').hidden = !backupDue();
@@ -386,6 +404,26 @@ function renderList() {
   }
 }
 
+const RING_CIRCUMFERENCE = 2 * Math.PI * 88; // r des Kreises im SVG
+const RING_STROKE = 16;
+
+function renderRing(total, zielMin) {
+  // Abrunden: 100 % erscheinen erst, wenn das Ziel wirklich erreicht ist
+  $('sum-pct').textContent = zielMin > 0 ? `${Math.floor(total * 100 / zielMin)} %` : '–';
+  const arc = $('sum-arc');
+  const share = zielMin > 0 ? total / zielMin : 0;
+  arc.style.visibility = share > 0 ? 'visible' : 'hidden';
+  if (share >= 1) {
+    arc.style.strokeDasharray = `${RING_CIRCUMFERENCE} 0`;
+    arc.style.strokeDashoffset = '0';
+  } else {
+    // Die runden Enden ragen je eine halbe Strichbreite hinaus – herausrechnen, damit der Bogen maßstabsgetreu bleibt
+    const length = Math.max(0, share * RING_CIRCUMFERENCE - RING_STROKE);
+    arc.style.strokeDasharray = `${length} ${RING_CIRCUMFERENCE}`;
+    arc.style.strokeDashoffset = String(-RING_STROKE / 2);
+  }
+}
+
 function fmtZiel() {
   return String(Number(state.einstellungen.zielStunden) || 0).replace('.', ',');
 }
@@ -408,12 +446,6 @@ function setPauseOptions(selected) {
   f.pause.value = Number(selected) || 0;
 }
 
-// Vorschlag für neue Einträge: Zeiten des letzten Eintrags, sonst 08:00–16:30
-function suggestedTimes() {
-  const last = [...state.eintraege].sort((a, b) => b.datum.localeCompare(a.datum))[0];
-  return last ? { start: last.start, ende: last.ende, pauseMin: last.pauseMin } : { start: '08:00', ende: '16:30', pauseMin: DEFAULT_PAUSE };
-}
-
 function readForm() {
   return {
     id: editingId || newId(),
@@ -428,7 +460,7 @@ function readForm() {
 function fillForm(e) {
   editingId = e ? e.id : null;
   f.datum.value = e ? e.datum : (f.datum.value || todayISO());
-  const vals = e || suggestedTimes();
+  const vals = e || DEFAULT_TIMES;
   f.start.value = vals.start;
   f.ende.value = vals.ende;
   setPauseOptions(vals.pauseMin);
