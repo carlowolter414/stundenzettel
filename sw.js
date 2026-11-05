@@ -1,5 +1,5 @@
 // Bei jeder Änderung an den App-Dateien die Version erhöhen, damit das iPhone die neue Fassung lädt.
-const CACHE = 'stundenzettel-v2';
+const CACHE = 'stundenzettel-v6';
 const FILES = ['./', 'index.html', 'manifest.json', 'icon.png'];
 
 self.addEventListener('install', event => {
